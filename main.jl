@@ -21,7 +21,7 @@ function main()
         #⬜
         #◽
 
-    Nx = 5
+    Nx = 160
     Ny = 1
     Nz = 1
     Lx = 1.0
@@ -86,20 +86,20 @@ function main()
 
     half_cell_num::Int32 = round(length(cells)/2)
     for i in 1:half_cell_num
-        cells[i].var[👉.p] = 1.e5
-        cells[i].var[👉.u] = 0.0
+        cells[i].var[👉.p] = 1.e6
+        cells[i].var[👉.u] = -2500.0
         cells[i].var[👉.v] = 0.0
         cells[i].var[👉.w] = 0.0
-        cells[i].var[👉.T] = 300.0
+        cells[i].var[👉.T] = 1000.0
         cells[i].var[👉.Y₁] = 0.0
     end
     
     for i in half_cell_num+1:length(cells)
         cells[i].var[👉.p] = 1.e6
-        cells[i].var[👉.u] = 0.0
+        cells[i].var[👉.u] = 2500.0
         cells[i].var[👉.v] = 0.0
         cells[i].var[👉.w] = 0.0
-        cells[i].var[👉.T] = 300.0
+        cells[i].var[👉.T] = 950.0
         cells[i].var[👉.Y₁] = 0.0
     end
 
@@ -133,7 +133,7 @@ function main()
             if 👉.pseudoIter == 1
                 CFL = 0.01
             else
-                CFL = 0.5
+                CFL = 1.0
             end
 
             # time-step
@@ -181,16 +181,19 @@ function main()
             println("- pseudo-time Step: $(👉.pseudoIter) \t",
             "log₁₀|ΔR|₂: $(round((👉.residual-residual0),digits=8))")
 
-            gr(reuse=true)
-            plt = plot([0;.1],[0;.2]) #plot([1:Lx], zeros(10))
-            for cell in cells
-                #println(cell.x, " ", cell.var[👉.p])
-                push!(plt, 1, cell.x, cell.var[👉.p])
-                #push!(plt, 2, cell.x, cell.var[👉.u])
-                #push!(plt, 2, cell.x, cell.var[👉.u])
-                #push!(plt, 3, cell.x, cell.var[👉.T])
-                #ush!(plt, 4, cell.x, cell.var[👉.Y₁])
+            gr()
+            X = zeros(Float64, length(cells), 1)
+            Y = zeros(Float64, length(cells), 6)
+            for i in 1:length(cells)
+                X[i] = cells[i].x
+                Y[i,1] = cells[i].var[👉.p]
+                Y[i,2] = cells[i].var[👉.u]
+                Y[i,3] = cells[i].var[👉.T]
+                Y[i,4] = cells[i].var[👉.Y₁]
+                Y[i,5] = cells[i].var[👉.ρ]
+                Y[i,6] = cells[i].var[👉.c]
             end
+            plt = plot(X,Y,layout = (3, 2),label = ["p" "u" "T" "Y₁" "ρ" "c"] )
             gui(); sleep(0.5)
 
 

@@ -1,8 +1,179 @@
 using Plots
-plt = plot([0,0.1], Any[rand(2),sin])
 
-for x in 0.2:0.1:π
-    push!(plt, 1, x, rand())
-    push!(plt, 2, x, sin(x))
-    gui(); sleep(0.5)
+
+
+
+function eosIdeal(
+    γ, cᵥ,
+    p, u, v, w, T
+)
+	u² = u^2+v^2+w^2
+	#= 
+	cᵥ = 1401.0 #707.0
+    γ = 1.330 #1.4 =#
+	
+	cₚ = γ*cᵥ
+		
+	# density of each phase
+	ρ = 1.0/( (γ-1.0)*cᵥ*T/p )
+	c = √( γ/ρ*p )
+
+	# d(rho)/d(p)
+	∂ρ∂p = ρ/p
+	
+	# d(rho)/d(T)
+	∂ρ∂T = -ρ/T
+
+	# d(h)/d(p)
+	∂Hₜ∂p = 0.0
+	# d(h)/d(T)
+	∂Hₜ∂T = γ*cᵥ
+
+	# internal energy of each phase
+	# internal_energy = (p+gam*pinf)/(gam-1.0)*(1.0/rhoi-bNASG)+q
+
+	# enthalpy of each phase
+	h = γ*cᵥ*T
+
+		   
+	# eti = internal_energy + 0.5*usqrt
+	Hₜ = h + 0.5*u²
+
+	# cvi = cv
+	# cpi = cp	
+
+    return ρ, Hₜ, c, ∂ρ∂p, ∂ρ∂T, ∂Hₜ∂p, ∂Hₜ∂T
+end		
+
+function eosNASG(
+    p, u, v, w, T
+)
+	u² = u^2+v^2+w^2
+	#= 
+    p∞ = 621780000.0
+	cᵥ = 3610.0
+    γ = 1.19
+    b = 6.7212e-4
+	q = -1177788.0 =#
+    
+    p∞ = 3.1e8
+	cᵥ = 160.0
+    γ = 7.15
+    b = 0.0#0.00067212
+	q = 0.0#-1177788.0
+	
+	cₚ = γ*cᵥ
+		
+	# density of each phase
+	ρ = 1.0/( (γ-1.0)*cᵥ*T/(p+p∞)+b )
+	c = √( γ/(ρ*ρ)*(p+p∞)/(1.0/ρ-b) )
+
+	# d(rho)/d(p)
+	∂ρ∂p = ρ*ρ*(1.0/ρ-b)/(p+p∞)
+	
+	# d(rho)/d(T)
+	∂ρ∂T = -ρ*ρ*(1.0/ρ-b)/T
+
+	# d(h)/d(p)
+	∂Hₜ∂p = b
+	# d(h)/d(T)
+	∂Hₜ∂T = γ*cᵥ
+
+	# internal energy of each phase
+	# internal_energy = (p+gam*pinf)/(gam-1.0)*(1.0/rhoi-bNASG)+q
+
+	# enthalpy of each phase
+	h = γ*cᵥ*T + b*p + q
+
+		   
+	# eti = internal_energy + 0.5*usqrt
+	Hₜ = h + 0.5*u²
+
+	# cvi = cv
+	# cpi = cp	
+
+    return ρ, Hₜ, c, ∂ρ∂p, ∂ρ∂T, ∂Hₜ∂p, ∂Hₜ∂T
 end
+
+
+
+X = 0.0:0.1:1.0
+
+
+Y = zeros(Float64, length(X))
+
+for i in 1:length(X)
+    ρᵢ = zeros(Float64, 2, 1)
+    ρᵢ = zeros(Float64, 2, 1)
+    Hₜᵢ = zeros(Float64, 2, 1)
+    cᵢ = zeros(Float64, 2, 1)
+    ∂ρ∂pᵢ = zeros(Float64, 2, 1)
+    ∂ρ∂Tᵢ = zeros(Float64, 2, 1)
+    ∂Hₜ∂pᵢ = zeros(Float64, 2, 1)
+    ∂Hₜ∂Tᵢ = zeros(Float64, 2, 1)
+#= 
+    Y₁ = X[i] #0.0
+
+    Y₁ = max(min(Y₁,1.0),0.0)
+    Y₂ = 1.0 - Y₁
+ =#
+    
+    α₁ = X[i]
+    α₁ = max(min(α₁,1.0),0.0)
+    α₂ = 1.0 - α₁
+
+    j = 1
+    (ρᵢ[j], Hₜᵢ[j], cᵢ[j], ∂ρ∂pᵢ[j], ∂ρ∂Tᵢ[j], ∂Hₜ∂pᵢ[j], ∂Hₜ∂Tᵢ[j]) = 
+    #eosIdeal(1.4, 707.0, 101325.0, 0.0, 0.0, 0.0, 300.0)
+    eosNASG(101325.0, 0.0, 0.0, 0.0, 300.0)
+    j = 2
+    (ρᵢ[j], Hₜᵢ[j], cᵢ[j], ∂ρ∂pᵢ[j], ∂ρ∂Tᵢ[j], ∂Hₜ∂pᵢ[j], ∂Hₜ∂Tᵢ[j]) = 
+    #eosIdeal(1.33, 1401.0, 101325.0, 0.0, 0.0, 0.0, 300.0)
+    eosIdeal(1.4, 707.0, 101325.0, 0.0, 0.0, 0.0, 300.0)
+
+#= 
+    ρ = 1.0/(Y₁/ρᵢ[1]+Y₂/ρᵢ[2])
+    α₁ = ρ*Y₁/ρᵢ[1]
+    α₁ = max(min(α₁,1.0),0.0)
+    α₂ = 1.0 - α₁
+ =#
+    ρ = α₁*ρᵢ[1]+α₂*ρᵢ[2]
+    Y₁ = ρᵢ[1]*α₁/ρ
+    Y₂ = 1.0 - Y₁
+
+    Hₜ = Y₁*Hₜᵢ[1] + Y₂*Hₜᵢ[2]
+
+    ∂ρ∂p = α₁*∂ρ∂pᵢ[1] + α₂*∂ρ∂pᵢ[2]
+    ∂ρ∂T = α₁*∂ρ∂Tᵢ[1] + α₂*∂ρ∂Tᵢ[2]
+
+    ∂Hₜ∂p = Y₁*∂Hₜ∂pᵢ[1] + Y₂*∂Hₜ∂pᵢ[2]
+    ∂Hₜ∂T = Y₁*∂Hₜ∂Tᵢ[1] + Y₂*∂Hₜ∂Tᵢ[2]
+
+    ∂ρ∂Y₁ = -ρ^2.0*(1.0/ρᵢ[1]-1.0/ρᵢ[2])
+    ∂Hₜ∂Y₁ = Hₜᵢ[1]-Hₜᵢ[2]
+
+    c = √(ρ*∂Hₜ∂T/(ρ*∂ρ∂p*∂Hₜ∂T+(1.0-ρ*∂Hₜ∂p)*∂ρ∂T))
+
+
+    Y[i] = c
+
+    #println(ρ," ",Y₁," ",Y₂," ",α₁," ",α₂," ",c)
+
+end
+
+plot(X,Y)
+
+#plot(X,Y,yticks = [0 10 100 1000],yaxis=:log)
+#= 
+println(Y₁)
+println(Y₂)
+println(α₁)
+println(α₂)
+println(ρ)
+println(∂ρ∂p)
+println(∂ρ∂T)
+println(∂Hₜ∂T)
+println(∂Hₜ∂p)
+println(c)
+ =#
+
