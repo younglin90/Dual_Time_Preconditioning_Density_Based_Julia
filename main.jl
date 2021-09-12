@@ -131,9 +131,9 @@ function main()
         )
 
             if 👉.pseudoIter == 1
-                CFL = 0.01
+                👉.CFL = 0.01
             else
-                CFL = 1.0
+                👉.CFL = 0.5
             end
 
             # time-step
