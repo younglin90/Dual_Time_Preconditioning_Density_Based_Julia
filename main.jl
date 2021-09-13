@@ -29,7 +29,7 @@ function main()
     Lz = 0.1
     realMaxIter = 1000000
     pseudoMaxIter = 30
-    pseudoMaxResidual = -50.0
+    pseudoMaxResidual = -4.0
 
     CFL = 0.5
     Δt = 1.e-6
@@ -110,10 +110,14 @@ function main()
     # solver
     👉.time = 0.0
     👉.realIter = 1
+    total_iter = 1.0
+    
+    plt2 = plot([],[])
+
     while(
         👉.realIter <= 👉.realMaxIter
     )
-        println("real-time Step: $(👉.realIter) \t Time: $(round((👉.Δt),digits=3))")
+        println("real-time Step: $(👉.realIter) \t Time: $(👉.time)")
 
         # Qⁿ, Qⁿ⁻¹
         if 👉.realIter == 1
@@ -126,16 +130,16 @@ function main()
         👉.residual = 10000.0
         residual0 = 10000.0
         while(
-            👉.pseudoIter <= 👉.pseudoMaxIter &&
-            👉.residual >= 👉.pseudoMaxResidual
+            👉.pseudoIter ≤ 👉.pseudoMaxIter &&
+            👉.residual-residual0 ≥ 👉.pseudoMaxResidual
         )
-
+#= 
             if 👉.pseudoIter == 1
                 👉.CFL = 0.01
             else
                 👉.CFL = 0.5
             end
-
+ =#
             # time-step
             timestep!(👉, cells)
 
@@ -192,12 +196,20 @@ function main()
                 Y[i,4] = cells[i].var[👉.Y₁]
                 Y[i,5] = cells[i].var[👉.ρ]
                 Y[i,6] = cells[i].var[👉.c]
+                
             end
-            plt = plot(X,Y,layout = (3, 2),label = ["p" "u" "T" "Y₁" "ρ" "c"] )
-            gui(); sleep(0.5)
+            push!(plt2,total_iter,👉.residual-residual0)
+            plt = plot(X,Y,layout = 
+            grid(3, 2),
+            label = ["p" "u" "T" "Y₁" "ρ" "c"] )
+            plot(plt,plt2,layout = 
+            grid(2, 1, heights=[0.8 ,0.2]))
 
+            gui()
+            #sleep(0.000001)
 
             👉.pseudoIter += 1
+            total_iter += 1.0
 
         end
 

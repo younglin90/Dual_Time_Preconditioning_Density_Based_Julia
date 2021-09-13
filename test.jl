@@ -232,7 +232,7 @@ for i in 1:length(X)
 
 end
 
-plot(X,Y)
+plot(X,Y,yaxis=:log)
 
 #plot(X,Y,yticks = [0 10 100 1000],yaxis=:log)
 #= 
