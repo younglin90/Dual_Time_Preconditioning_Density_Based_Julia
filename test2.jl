@@ -1,39 +1,100 @@
-using Plots
-using Flux
-#Auxiliary functions for generating our data
-function generate_real_data(n)
-    x1 = rand(1,n) .- 0.5
-    x2 = (x1 .* x1)*3 .+ randn(1,n)*0.1
-    return vcat(x1,x2)
+using Flux, Statistics
+using Flux.Data: DataLoader
+using Flux: onehotbatch, onecold, @epochs
+using Flux.Losses: logitcrossentropy
+using Base: @kwdef
+using CUDA
+using MLDatasets
+
+
+function getdata(args, device)
+    ENV["DATADEPS_ALWAYS_ACCEPT"] = "true"
+
+    # Loading Dataset	
+    xtrain, ytrain = MLDatasets.MNIST.traindata(Float32)
+    xtest, ytest = MLDatasets.MNIST.testdata(Float32)
+	
+    # Reshape Data in order to flatten each image into a linear array
+    xtrain = Flux.flatten(xtrain)
+    xtest = Flux.flatten(xtest)
+
+    # One-hot-encode the labels
+    ytrain, ytest = onehotbatch(ytrain, 0:9), onehotbatch(ytest, 0:9)
+
+    # Create DataLoaders (mini-batch iterators)
+    train_loader = DataLoader((xtrain, ytrain), batchsize=args.batchsize, shuffle=true)
+    test_loader = DataLoader((xtest, ytest), batchsize=args.batchsize)
+
+    return train_loader, test_loader
 end
-function generate_fake_data(n)
-    θ  = 2*π*rand(1,n)
-    r  = rand(1,n)/3
-    x1 = @. r*cos(θ)
-    x2 = @. r*sin(θ)+0.5
-    return vcat(x1,x2)
-end# Creating our data
-train_size = 5000
-real = generate_real_data(train_size)
-fake = generate_fake_data(train_size)# Visualizing
-scatter(real[1,1:500],real[2,1:500])
-scatter!(fake[1,1:500],fake[2,1:500])
-function NeuralNetwork()
+
+function build_model(; imgsize=(28,28,1), nclasses=10)
     return Chain(
-            Dense(2, 25,relu),
-            Dense(25,1,x->σ.(x))
-            )
-end# Organizing the data in batches
-X    = hcat(real,fake)
-Y    = vcat(ones(train_size),zeros(train_size))
-data = Flux.Data.DataLoader(X, Y', batchsize=100,shuffle=true);# Defining our model, optimization algorithm and loss function
-m    = NeuralNetwork()
-opt = Descent(0.05)loss(x, y) = sum(Flux.Losses.binarycrossentropy(m(x), y))# Training Method 1
-ps = Flux.params(m)
-epochs = 20
-for i in 1:epochs
-    Flux.train!(loss, ps, data, opt)
+ 	        Dense(prod(imgsize), 32, relu),
+            Dense(32, nclasses))
 end
-println(mean(m(real)),mean(m(fake))) # Print model prediction# Visualizing the model predictions
-scatter(real[1,1:100],real[2,1:100],zcolor=m(real)')
-scatter!(fake[1,1:100],fake[2,1:100],zcolor=m(fake)',legend=false)
+
+function loss_and_accuracy(data_loader, model, device)
+    acc = 0
+    ls = 0.0f0
+    num = 0
+    for (x, y) in data_loader
+        x, y = device(x), device(y)
+        ŷ = model(x)
+        ls += logitcrossentropy(model(x), y, agg=sum)
+        acc += sum(onecold(cpu(model(x))) .== onecold(cpu(y)))
+        num +=  size(x, 2)
+    end
+    return ls / num, acc / num
+end
+
+
+@kwdef mutable struct Args
+    η::Float64 = 3e-4       # learning rate
+    batchsize::Int = 256    # batch size
+    epochs::Int = 10        # number of epochs
+    use_cuda::Bool = true   # use gpu (if cuda available)
+end
+
+function train(; kws...)
+    args = Args(; kws...) # collect options in a struct for convenience
+
+    if CUDA.functional() && args.use_cuda
+        @info "Training on CUDA GPU"
+        CUDA.allowscalar(false)
+        device = gpu
+    else
+        @info "Training on CPU"
+        device = cpu
+    end
+
+    # Create test and train dataloaders
+    train_loader, test_loader = getdata(args, device)
+
+    # Construct model
+    model = build_model() |> device
+    ps = Flux.params(model) # model's trainable parameters
+    
+    ## Optimizer
+    opt = ADAM(args.η)
+    
+    ## Training
+    for epoch in 1:args.epochs
+        for (x, y) in train_loader
+            x, y = device(x), device(y) # transfer data to device
+            gs = gradient(() -> logitcrossentropy(model(x), y), ps) # compute gradient
+            Flux.Optimise.update!(opt, ps, gs) # update parameters
+        end
+        
+        # Report on train and test
+        train_loss, train_acc = loss_and_accuracy(train_loader, model, device)
+        test_loss, test_acc = loss_and_accuracy(test_loader, model, device)
+        println("Epoch=$epoch")
+        println("  train_loss = $train_loss, train_accuracy = $train_acc")
+        println("  test_loss = $test_loss, test_accuracy = $test_acc")
+    end
+end
+
+### Run training 
+train()
+# train(η=0.01) # can change hyperparameters
