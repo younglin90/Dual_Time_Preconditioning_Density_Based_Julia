@@ -37,21 +37,22 @@ function face_left_right!(
     # Top
     #bc_sub_outlet!(👉, faces_boundary_top, cells, 101325.0)
     #bc_moving_wall!(👉, faces_boundary_top, cells, 1.0, 0.0, 0.0)
-    bc_slip_wall!(👉, faces_boundary_top, cells)
+    bc_wall!(👉, faces_boundary_top, cells)
+    #bc_slip_wall!(👉, faces_boundary_top, cells)
 
     # Bottom
-    #bc_wall!(👉, faces_boundary_bottom, cells)
-    bc_slip_wall!(👉, faces_boundary_bottom, cells)
+    bc_wall!(👉, faces_boundary_bottom, cells)
+    #bc_slip_wall!(👉, faces_boundary_bottom, cells)
 
     # Left
     #bc_slip_wall!(👉, faces_boundary_left, cells)
-    #bc_wall!(👉, faces_boundary_left, cells)
-    bc_sup_outlet!(👉, faces_boundary_left, cells)
+    bc_wall!(👉, faces_boundary_left, cells)
+    #bc_sup_outlet!(👉, faces_boundary_left, cells)
 
     # Right
     #bc_slip_wall!(👉, faces_boundary_right, cells)
-    #bc_wall!(👉, faces_boundary_right, cells)
-    bc_sup_outlet!(👉, faces_boundary_right, cells)
+    bc_wall!(👉, faces_boundary_right, cells)
+    #bc_sup_outlet!(👉, faces_boundary_right, cells)
 
 
     # EOS

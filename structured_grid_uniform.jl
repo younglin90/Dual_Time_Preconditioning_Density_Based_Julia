@@ -50,6 +50,8 @@ function structured_grid_uniform!(
         end
     end
 
+
+
     #println(length(cell))
     # internal faces
     for i in 2:👉.Nx
@@ -187,7 +189,7 @@ function structured_grid_uniform!(
     
 
     for i in cell
-        for j in 1:20
+        for j in 1:31
             push!(i.var,0.0)
         end
     end

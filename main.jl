@@ -14,6 +14,102 @@ include("./EOS.jl")
 
 using Plots
 
+
+function plotting1D(
+    Nx, Ny, 
+    👉::controls,
+    cells::Vector{mesh.Cell}
+)
+
+    X = zeros(Float64, length(cells), 1)
+    Y = zeros(Float64, length(cells), 8)
+    for i in 1:length(cells)
+        X[i] = cells[i].x
+        Y[i,1] = cells[i].var[👉.p]
+        Y[i,2] = cells[i].var[👉.u]
+        Y[i,3] = cells[i].var[👉.v]
+        Y[i,4] = cells[i].var[👉.T]
+        Y[i,5] = cells[i].var[👉.α₁]
+        Y[i,6] = cells[i].var[👉.ρ]
+        Y[i,7] = cells[i].var[👉.c]
+        Y[i,8] = cells[i].var[👉.Hₜ]
+        
+    end
+    plot(X,Y,layout = grid(3, 3), label = ["p" "u" "v" "T" "α₁" "ρ" "c" "Hₜ"] )
+
+    gui()
+
+end
+
+
+function plotting2D(
+    Nx, Ny, 
+    👉::controls,
+    cells::Vector{mesh.Cell}
+)
+
+    #plt = plot(X,VAR,layout = 
+    #grid(3, 2),
+    #label = ["p" "u" "T" "Y₁" "ρ" "c"] )
+    #plot(plt)
+    #contourf!(X,Y,VAR)
+
+    X = zeros(Float64, Nx)
+    Y = zeros(Float64, Ny)
+    VAR1 = zeros(Float64, Nx, Ny)
+    VAR2 = zeros(Float64, Nx, Ny)
+    VAR3 = zeros(Float64, Nx, Ny)
+    VAR4 = zeros(Float64, Nx, Ny)
+    VAR5 = zeros(Float64, Nx, Ny)
+    VAR6 = zeros(Float64, Nx, Ny)
+    for i in 1:Nx
+        for j in 1:Ny
+            k=1
+            ijk = i + Nx*(j-1) + Nx*Ny*(k-1)
+            X[i] = cells[ijk].x
+            Y[j] = cells[ijk].y
+            VAR1[i,j] = cells[ijk].var[👉.p]
+            VAR2[i,j] = cells[ijk].var[👉.ρ]
+            #VAR2[i,j] = cells[ijk].var[👉.α₁]
+            VAR3[i,j] = cells[ijk].var[👉.u]
+            VAR4[i,j] = cells[ijk].var[👉.v]
+            VAR5[i,j] = cells[ijk].var[👉.w]
+            VAR6[i,j] = cells[ijk].var[👉.T]
+
+        end
+    end
+
+    #plotlyjs()
+    #X = 0.5*Δx:Δx:👉.Lx
+    #Y = 0.5*Δy:Δy:👉.Ly
+    #X = repeat(reshape(x, 1, :), length(y), 1)
+    #Y = repeat(y, 1, length(x))
+    #plot(contour(X, Y, VAR2, fill = true))
+    plot(
+        heatmap(X, Y, VAR1', c = :bluesreds),
+        heatmap(X, Y, VAR2', c = :bluesreds),
+        heatmap(X, Y, VAR3', c = :bluesreds),
+        heatmap(X, Y, VAR4', c = :bluesreds),
+        heatmap(X, Y, VAR5', c = :bluesreds),
+        heatmap(X, Y, VAR6', c = :bluesreds);
+        layout = grid(3, 2)
+    )
+
+    gui()
+#=
+    plot(contour(
+        x=0.5*Δx:Δx:👉.Lx,#X, # horizontal axis
+        y=0.5*Δy:Δy:👉.Ly,#Y, # vertical axis
+        z=VAR2'#VAR[:,5]'
+    ))
+=#
+
+
+
+end
+
+
+
 function main()
 
 
@@ -21,18 +117,18 @@ function main()
         #⬜
         #◽
 
-    Nx = 160
-    Ny = 1
+    Nx = 50
+    Ny = 50
     Nz = 1
     Lx = 1.0
-    Ly = 0.1
+    Ly = 1.0
     Lz = 0.1
     realMaxIter = 1000000
-    pseudoMaxIter = 30
+    pseudoMaxIter = 60
     pseudoMaxResidual = -4.0
 
-    CFL = 0.5
-    Δt = 1.e-6
+    CFL = 0.1
+    Δt = 1.e-3
     Lco = 1.0
     Uco = 1.0
 
@@ -84,6 +180,29 @@ function main()
         cell.var[👉.Y₁] = 0.0
     end
 
+
+
+    # dam break
+    for cell in cells
+        cell.var[👉.p] = 101325.0
+        cell.var[👉.u] = 0.0
+        cell.var[👉.v] = 0.0
+        cell.var[👉.w] = 0.0
+        cell.var[👉.T] = 300.0
+        cell.var[👉.Y₁] = 0.0
+        cell.var[👉.α₁] = 0.0
+
+        if cell.x < 0.4 && cell.y < 0.4
+            cell.var[👉.Y₁] = 1.0
+            cell.var[👉.α₁] = 1.0
+        end
+    end
+
+
+
+
+#=
+    # 1D cavitation
     half_cell_num::Int32 = round(length(cells)/2)
     for i in 1:half_cell_num
         cells[i].var[👉.p] = 1.e6
@@ -102,6 +221,85 @@ function main()
         cells[i].var[👉.T] = 950.0
         cells[i].var[👉.Y₁] = 0.0
     end
+=#
+
+#=
+
+    # 1D high pressure water & low pressure air
+    for cell in cells
+        if cell.x < 0.7
+            cell.var[👉.p] = 1.e9
+            cell.var[👉.u] = 0.0
+            cell.var[👉.v] = 0.0
+            cell.var[👉.w] = 0.0
+            cell.var[👉.T] = 300.0
+            cell.var[👉.Y₁] = 1.0
+            cell.var[👉.α₁] = 1.0
+        else
+            cell.var[👉.p] = 1.e5
+            cell.var[👉.u] = 0.0
+            cell.var[👉.v] = 0.0
+            cell.var[👉.w] = 0.0
+            cell.var[👉.T] = 6.968
+            cell.var[👉.Y₁] = 0.0
+            cell.var[👉.α₁] = 0.0
+        end
+    end
+
+=#
+
+#=
+    # 1D high pressure water & low pressure air
+    for cell in cells
+        if cell.x < 0.5
+            cell.var[👉.p] = 1.0
+            cell.var[👉.u] = 0.0
+            cell.var[👉.v] = 0.0
+            cell.var[👉.w] = 0.0
+            cell.var[👉.T] = 0.003484
+            cell.var[👉.Y₁] = 0.0
+            cell.var[👉.α₁] = 0.0
+        else
+            cell.var[👉.p] = 0.1
+            cell.var[👉.u] = 0.0
+            cell.var[👉.v] = 0.0
+            cell.var[👉.w] = 0.0
+            cell.var[👉.T] = 0.002787
+            cell.var[👉.Y₁] = 0.0
+            cell.var[👉.α₁] = 0.0
+        end
+    end
+=#
+
+
+#=
+    # One-dimensional helium-bubble in air
+    for cell in cells
+        
+        if cell.x < 0.3
+            cell.var[👉.p] = 1.245e5
+            cell.var[👉.u] = 55.33
+            cell.var[👉.v] = 0.0
+            cell.var[👉.w] = 0.0
+            cell.var[👉.T] = 319.48
+            cell.var[👉.Y₁] = 0.0
+            cell.var[👉.α₁] = 0.0
+        else
+            cell.var[👉.p] = 1.e5
+            cell.var[👉.u] = 0.0
+            cell.var[👉.v] = 0.0
+            cell.var[👉.w] = 0.0
+            cell.var[👉.T] = 300.0
+            cell.var[👉.Y₁] = 0.0
+            cell.var[👉.α₁] = 0.0
+        end
+
+        if 0.5 < cell.x < 0.7
+            cell.var[👉.Y₁] = 1.0
+            cell.var[👉.α₁] = 1.0
+        end
+    end
+=#
 
     # EOS
     EOS!(👉, cells)
@@ -133,15 +331,15 @@ function main()
             👉.pseudoIter ≤ 👉.pseudoMaxIter &&
             👉.residual-residual0 ≥ 👉.pseudoMaxResidual
         )
-#= 
+        #=
             if 👉.pseudoIter == 1
-                👉.CFL = 0.01
+                👉.CFL = 0.0000001
             else
-                👉.CFL = 0.5
+                👉.CFL = 0.1
             end
- =#
+        =#
             # time-step
-            timestep!(👉, cells)
+            timestep!(👉, cells, Lx/Nx, Ly/Ny, Lz/Nz)
 
             # face left, Right
             face_left_right!(👉, cells, faces, faces_internal, faces_boundary, 
@@ -185,28 +383,7 @@ function main()
             println("- pseudo-time Step: $(👉.pseudoIter) \t",
             "log₁₀|ΔR|₂: $(round((👉.residual-residual0),digits=8))")
 
-            gr()
-            X = zeros(Float64, length(cells), 1)
-            Y = zeros(Float64, length(cells), 6)
-            for i in 1:length(cells)
-                X[i] = cells[i].x
-                Y[i,1] = cells[i].var[👉.p]
-                Y[i,2] = cells[i].var[👉.u]
-                Y[i,3] = cells[i].var[👉.T]
-                Y[i,4] = cells[i].var[👉.Y₁]
-                Y[i,5] = cells[i].var[👉.ρ]
-                Y[i,6] = cells[i].var[👉.c]
-                
-            end
-            push!(plt2,total_iter,👉.residual-residual0)
-            plt = plot(X,Y,layout = 
-            grid(3, 2),
-            label = ["p" "u" "T" "Y₁" "ρ" "c"] )
-            plot(plt,plt2,layout = 
-            grid(2, 1, heights=[0.8 ,0.2]))
-
-            gui()
-            #sleep(0.000001)
+            plotting2D(Nx, Ny, 👉, cells)
 
             👉.pseudoIter += 1
             total_iter += 1.0

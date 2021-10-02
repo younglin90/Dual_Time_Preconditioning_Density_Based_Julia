@@ -11,6 +11,9 @@ function update_primitive!(
         cells[i].var[👉.w] += x[i, 4]
         cells[i].var[👉.T] += x[i, 5]
         cells[i].var[👉.Y₁] += x[i, 6]
+
+        cells[i].var[👉.p] = max(cells[i].var[👉.p],1.e-200)
+        cells[i].var[👉.T] = max(cells[i].var[👉.T],1.e-200)
     end
 
 end
