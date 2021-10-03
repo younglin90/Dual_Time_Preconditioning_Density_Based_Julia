@@ -7,6 +7,26 @@ function flux!(
 )
 
 
+	∂Δp∂x0 = zeros(Float64, length(cells), 3)
+	for face in faces_internal
+		pₙ = 0.5 * (cells[face.owner].var[👉.p] + cells[face.neighbour].var[👉.p])
+		∂Δp∂x0[face.owner, 1] += pₙ * face.n̂[1] * face.ΔS / cells[face.owner].Ω
+		∂Δp∂x0[face.owner, 2] += pₙ * face.n̂[2] * face.ΔS / cells[face.owner].Ω
+		∂Δp∂x0[face.owner, 3] += pₙ * face.n̂[3] * face.ΔS / cells[face.owner].Ω
+		∂Δp∂x0[face.neighbour, 1] -= pₙ * face.n̂[1] * face.ΔS / cells[face.neighbour].Ω
+		∂Δp∂x0[face.neighbour, 2] -= pₙ * face.n̂[2] * face.ΔS / cells[face.neighbour].Ω
+		∂Δp∂x0[face.neighbour, 3] -= pₙ * face.n̂[3] * face.ΔS / cells[face.neighbour].Ω
+	end
+
+	for face in faces_boundary
+		pₙ = cells[face.owner].var[👉.p]
+		∂Δp∂x0[face.owner, 1] += pₙ * face.n̂[1] * face.ΔS / cells[face.owner].Ω
+		∂Δp∂x0[face.owner, 2] += pₙ * face.n̂[2] * face.ΔS / cells[face.owner].Ω
+		∂Δp∂x0[face.owner, 3] += pₙ * face.n̂[3] * face.ΔS / cells[face.owner].Ω
+	end
+
+
+
 	
 	shock_sensor = shock_discontinuity_sensing_term!(
 		👉,cells,faces_internal,faces_boundary
@@ -28,6 +48,35 @@ function flux!(
 		preRs = abs(pᵣ) + 0.1 * ρᵣ*cᵣ*cᵣ
 		w₂ = min(preLs/preRs,preRs/preLs)
 
+
+        uₗ = cells[face.owner].var[👉.u]
+        uᵣ = cells[face.neighbour].var[👉.u]
+        vₗ = cells[face.owner].var[👉.v]
+        vᵣ = cells[face.neighbour].var[👉.v]
+        wₗ = cells[face.owner].var[👉.w]
+        wᵣ = cells[face.neighbour].var[👉.w]
+		
+        Uₙₗ = uₗ * face.n̂[1] + vₗ * face.n̂[2] + wₗ * face.n̂[3]
+        Uₙᵣ = uᵣ * face.n̂[1] + vᵣ * face.n̂[2] + wᵣ * face.n̂[3]
+        Uₙ = 0.5 * (Uₙₗ + Uₙᵣ)
+
+        centerₗ = [cells[face.owner].x, cells[face.owner].y, cells[face.owner].z]
+        centerᵣ = [cells[face.neighbour].x, cells[face.neighbour].y, cells[face.neighbour].z]
+        ΔLR = norm(centerᵣ - centerₗ)
+
+        ρˢ = 1.0 / (0.5/ρₗ + 0.5/ρᵣ)
+        #d = 0.5 * (cells[face.owner].Ω / (Ap[face.owner]+1.e-250) + cells[face.neighbour].Ω / (Ap[face.neighbour]+1.e-250) )
+        d̂ = 👉.Δt / ρˢ
+
+        # Rhie-Chow
+        Uₙ += d̂ * ρˢ * 0.5 / ρₗ * ∂Δp∂x0[face.owner, 1] * face.n̂[1]
+        Uₙ += d̂ * ρˢ * 0.5 / ρₗ * ∂Δp∂x0[face.owner, 2] * face.n̂[2]
+        Uₙ += d̂ * ρˢ * 0.5 / ρₗ * ∂Δp∂x0[face.owner, 3] * face.n̂[3]
+        Uₙ += d̂ * ρˢ * 0.5 / ρᵣ * ∂Δp∂x0[face.neighbour, 1] * face.n̂[1]
+        Uₙ += d̂ * ρˢ * 0.5 / ρᵣ * ∂Δp∂x0[face.neighbour, 2] * face.n̂[2]
+        Uₙ += d̂ * ρˢ * 0.5 / ρᵣ * ∂Δp∂x0[face.neighbour, 3] * face.n̂[3]
+        Uₙ -= d̂ * (pᵣ-pₗ) / ΔLR
+
         flux = zeros(Float64, 6, 1)
         flux = YYL_Riemann(
             face.varₗ[👉.p],face.varₗ[👉.u],face.varₗ[👉.v],face.varₗ[👉.w],
@@ -35,18 +84,22 @@ function flux!(
             face.varᵣ[👉.p],face.varᵣ[👉.u],face.varᵣ[👉.v],face.varᵣ[👉.w],
             face.varᵣ[👉.T],face.varᵣ[👉.Y₁],face.varᵣ[👉.ρ],face.varᵣ[👉.Hₜ],face.varᵣ[👉.c],
             👉.Lco,👉.Uco,👉.Δt,
-            w₁, w₂, cpi2,
+            w₁, w₂, cpi2, Uₙ,
             face.n̂[1],face.n̂[2],face.n̂[3]
             )
 
 
-        RHS[face.owner, :] -= flux[:]*face.ΔS/cells[face.owner].Ω #* 👉.Δt
-        RHS[face.neighbour, :] += flux[:]*face.ΔS/cells[face.neighbour].Ω #* 👉.Δt
+        RHS[face.owner, :] -= flux[:]*face.ΔS#/cells[face.owner].Ω #* 👉.Δt
+        RHS[face.neighbour, :] += flux[:]*face.ΔS#/cells[face.neighbour].Ω #* 👉.Δt
 
     end
 
 
     for face in faces_boundary
+		
+		
+        Uₙₗ = face.varₗ[👉.u] * face.n̂[1] + face.varₗ[👉.v] * face.n̂[2] + face.varₗ[👉.w] * face.n̂[3]
+        Uₙ = Uₙₗ
 
         flux = zeros(Float64, 6, 1)
         flux = YYL_Riemann(
@@ -55,18 +108,18 @@ function flux!(
             face.varᵣ[👉.p],face.varᵣ[👉.u],face.varᵣ[👉.v],face.varᵣ[👉.w],
             face.varᵣ[👉.T],face.varᵣ[👉.Y₁],face.varᵣ[👉.ρ],face.varᵣ[👉.Hₜ],face.varᵣ[👉.c],
             👉.Lco,👉.Uco,👉.Δt,
-            1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, Uₙ,
             face.n̂[1],face.n̂[2],face.n̂[3]
             )
 
-        RHS[face.owner, :] -= flux[:]*face.ΔS/cells[face.owner].Ω #* 👉.Δt
+        RHS[face.owner, :] -= flux[:]*face.ΔS#/cells[face.owner].Ω #* 👉.Δt
 
     end
 
 	i = 1
 	for cell in cells
 
-		RHS[i,3] += cell.var[👉.ρ]*(-9.8)
+		RHS[i,3] += cell.var[👉.ρ]*(-9.8)*cell.Ω
 
 		i += 1
 	end
@@ -123,7 +176,7 @@ function YYL_Riemann(
     pᵣ::Float64,uᵣ::Float64,vᵣ::Float64,wᵣ::Float64,
 	Tᵣ::Float64,Y₁ᵣ::Float64,ρᵣ::Float64,Hₜᵣ::Float64,cᵣ::Float64,
     Lco::Float64,Uco::Float64,Δt::Float64,
-    w₁::Float64,w₂::Float64,cpi2::Float64,
+    w₁::Float64,w₂::Float64,cpi2::Float64, Uₙ_RC::Float64,
     nx::Float64,ny::Float64,nz::Float64
 )
 
@@ -208,7 +261,32 @@ function YYL_Riemann(
 	#pₗᵣ = 0.5*(pₗ+pᵣ) + KLR*0.5*(ρₗ+ρᵣ)*c̄*(p⁺+p⁻-1.0) - 0.5*(p⁺-p⁻)*(pᵣ-pₗ)
 
 	#pₗᵣ = pₗ*p⁺ + pᵣ*p⁻
-	#pₗᵣ = 0.5*(pₗ + pᵣ)
+	pₗᵣ = 0.5*(pₗ + pᵣ)
+	#pₗᵣ = pₗ*p⁺ + pᵣ*p⁻ - fa2*(KLR/c̄)*0.5*p⁺*p⁻*0.5*(pₗ+pᵣ)/c̄*(Uₙᵣ-Uₙₗ)
+
+	#=
+	UU = Uₙ_RC
+	if UU > 0.0
+		ṁₗ = ρₗ * UU
+		ṁᵣ = 0.0
+	else
+		ṁₗ = 0.0
+		ṁᵣ = ρᵣ * UU
+	end
+=#
+	#=
+	Mₗ⁺ = M_func(Mₗ,1.0,0.125)
+	Mᵣ⁻ = M_func(Mᵣ,-1.0,0.125)
+
+	if Mₗ⁺+Mᵣ⁻ >= 0.0
+		ṁₗ = ρₗ * c̄ * ( Mₗ⁺+Mᵣ⁻ )
+		ṁᵣ = 0.0
+	else
+		ṁₗ = 0.0
+		ṁᵣ = ρᵣ * c̄ * ( Mₗ⁺+Mᵣ⁻ )
+	end
+	=#
+
 	#=
 	ṁ = ρₗ*c̄*MLP_SLAU + ρᵣ*c̄*MRM_SLAU - 
 			0.5*(1.0-min(1.0,1.0/c̄*KLR))^2.0 *(pᵣ-pₗ)/c̄
@@ -220,16 +298,18 @@ function YYL_Riemann(
 		ṁᵣ = ṁ #- (ρᵣ*c̄*Mₗ⁺)*( w*(1.0+fL)-fL+fR )
 	end
 	=#
-#=
-	UU = 0.5*(Uₙₗ+Uₙᵣ)
+	
+	UU = Uₙ_RC #0.5*(Uₙₗ+Uₙᵣ) - 0.5*(pᵣ-pₗ)/c̄* (0.5/ρₗ + 0.5/ρᵣ) #0.1*(pᵣ-pₗ)/c̄ * (0.5/ρₗ + 0.5/ρᵣ)
+	#UU = 0.5*(ρₗ*Uₙₗ+ρᵣ*Uₙᵣ) - 0.5*(pᵣ-pₗ)/c̄ 
 	if UU > 0.0
 		ṁₗ = ρₗ * UU
 		ṁᵣ = 0.0
 	else
 		ṁₗ = 0.0
-		ṁᵣ = ρᵣ * UU
+		ṁᵣ = ρᵣ * UU 
 	end
-=#
+	
+	
 	#rhohat = 0.5*(ρₗ+ρᵣ)
     #gam2 = 0.5*(1.0-tanh(15.0*(min(abs(pₗ/pᵣ),abs(pᵣ/pₗ)))+0.0))
     #gam = max( 0.5, gam2 ) 

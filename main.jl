@@ -12,7 +12,15 @@ include("./real_time_terms.jl")
 include("./residual_norm.jl")
 include("./EOS.jl")
 
+
 using Plots
+#using PlotlyJS
+using LinearAlgebra
+using SparseArrays
+using IterativeSolvers
+#using AlgebraicMultigrid
+
+using Pardiso
 
 
 function plotting1D(
@@ -124,10 +132,10 @@ function main()
     Ly = 1.0
     Lz = 0.1
     realMaxIter = 1000000
-    pseudoMaxIter = 60
-    pseudoMaxResidual = -4.0
+    pseudoMaxIter = 30
+    pseudoMaxResidual = -10000000.0
 
-    CFL = 0.1
+    CFL = 1.0
     Δt = 1.e-3
     Lco = 1.0
     Uco = 1.0
@@ -324,6 +332,14 @@ function main()
             update_real_conservative!(👉, cells)
         end
 
+        if 👉.realIter < 3
+            👉.CFL = 0.01
+            👉.pseudoMaxIter = 15
+        else
+            👉.CFL = 0.01
+            👉.pseudoMaxIter = 15
+        end
+
         👉.pseudoIter = 1
         👉.residual = 10000.0
         residual0 = 10000.0
@@ -360,8 +376,25 @@ function main()
             # sparse A matrix
             A = zeros(Float64, length(cells), 6, 6)
             #construct_A_matrix_implicit!(👉, A, cells, faces)
-            construct_A_matrix_explicit!(👉, A, cells)
+            #construct_A_matrix_explicit!(👉, A, cells)
 
+            👉.residual = 
+            #construct_A_matrix_implicit!(
+            construct_A_matrix_explicit!(
+                👉, 
+                cells,
+                faces,
+                faces_internal,
+                faces_boundary,
+                faces_boundary_top,
+                faces_boundary_bottom,
+                faces_boundary_left,
+                faces_boundary_right,
+                B
+            )
+                
+
+            #=
             # Ax=B
             x = zeros(Float64, length(cells), 6)
             #linear_solver_implicit!(A, x, B)
@@ -375,13 +408,16 @@ function main()
             
             # update primitive
             update_primitive!(👉, x, cells)
+            =#
             
             # EOS
             EOS!(👉, cells)
             
         
+            #println("- pseudo-time Step: $(👉.pseudoIter) \t",
+            #"log₁₀|ΔR|₂: $(round((👉.residual-residual0),digits=8))")
             println("- pseudo-time Step: $(👉.pseudoIter) \t",
-            "log₁₀|ΔR|₂: $(round((👉.residual-residual0),digits=8))")
+            "log₁₀|ΔR|₂: $(round((👉.residual),digits=8))")
 
             plotting2D(Nx, Ny, 👉, cells)
 
